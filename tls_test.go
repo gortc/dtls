@@ -9,7 +9,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"internal/testenv"
 	"io"
 	"io/ioutil"
 	"math"
@@ -19,6 +18,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gortc/dtls/internal/testenv"
 )
 
 var rsaCertPEM = `-----BEGIN CERTIFICATE-----

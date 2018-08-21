@@ -12,13 +12,14 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"internal/cpu"
 	"io"
 	"math/big"
 	"net"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gortc/dtls/internal/cpu"
 )
 
 const (
