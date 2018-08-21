@@ -7,8 +7,9 @@
 package cpu_test
 
 import (
-	. "internal/cpu"
 	"testing"
+
+	. "github.com/gortc/dtls/internal/cpu"
 )
 
 func TestPPC64minimalFeatures(t *testing.T) {

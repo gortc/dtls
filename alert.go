@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package tls
+package dtls
 
 import "strconv"
 
@@ -61,7 +61,7 @@ var alertText = map[alert]string{
 	alertDecryptError:           "error decrypting message",
 	alertProtocolVersion:        "protocol version not supported",
 	alertInsufficientSecurity:   "insufficient security level",
-	alertInternalError:          "internal error",
+	alertInternalError:          "github.com/gortc/dtls/internal error",
 	alertInappropriateFallback:  "inappropriate fallback",
 	alertUserCanceled:           "user canceled",
 	alertNoRenegotiation:        "no renegotiation",

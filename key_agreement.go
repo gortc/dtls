@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package tls
+package dtls
 
 import (
 	"crypto"
@@ -274,7 +274,7 @@ func (ka *ecdheKeyAgreement) processClientKeyExchange(config *Config, cert *Cert
 
 	curve, ok := curveForCurveID(ka.curveid)
 	if !ok {
-		panic("internal error")
+		panic("github.com/gortc/dtls/internal error")
 	}
 	x, y := elliptic.Unmarshal(curve, ckx.ciphertext[1:]) // Unmarshal also checks whether the given point is on the curve
 	if x == nil {
@@ -377,7 +377,7 @@ func (ka *ecdheKeyAgreement) generateClientKeyExchange(config *Config, clientHel
 	} else {
 		curve, ok := curveForCurveID(ka.curveid)
 		if !ok {
-			panic("internal error")
+			panic("github.com/gortc/dtls/internal error")
 		}
 		priv, mx, my, err := elliptic.GenerateKey(curve, config.rand())
 		if err != nil {

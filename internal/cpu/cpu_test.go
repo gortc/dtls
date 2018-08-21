@@ -5,12 +5,13 @@
 package cpu_test
 
 import (
-	. "internal/cpu"
-	"internal/testenv"
 	"os"
 	"os/exec"
 	"strings"
 	"testing"
+
+	. "github.com/gortc/dtls/internal/cpu"
+	"github.com/gortc/dtls/internal/testenv"
 )
 
 func MustHaveDebugOptionsEnabled(t *testing.T) {

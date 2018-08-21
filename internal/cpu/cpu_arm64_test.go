@@ -5,9 +5,10 @@
 package cpu_test
 
 import (
-	. "internal/cpu"
 	"runtime"
 	"testing"
+
+	. "github.com/gortc/dtls/internal/cpu"
 )
 
 func TestARM64minimalFeatures(t *testing.T) {
