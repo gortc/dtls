@@ -11,6 +11,7 @@ import (
 	"crypto/cipher"
 	"crypto/subtle"
 	"crypto/x509"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -156,6 +157,10 @@ type halfConn struct {
 	seq            [8]byte  // 64-bit sequence number
 	additionalData [13]byte // to avoid allocs; interface method args escape
 
+	// DTLS-specific.
+	epoch uint16
+	dseq  uint64
+
 	nextCipher interface{} // next encryption state
 	nextMac    macFunction // next MAC algorithm
 
@@ -202,6 +207,8 @@ func (hc *halfConn) setTrafficSecret(suite *cipherSuiteTLS13, secret []byte) {
 
 // incSeq increments the sequence number.
 func (hc *halfConn) incSeq() {
+	hc.dseq++
+
 	for i := 7; i >= 0; i-- {
 		hc.seq[i]++
 		if hc.seq[i] != 0 {
@@ -342,9 +349,10 @@ func (hc *halfConn) decrypt(record []byte) ([]byte, recordType, error) {
 			} else {
 				copy(additionalData, hc.seq[:])
 				copy(additionalData[8:], record[:3])
-				n := len(payload) - c.Overhead()
-				additionalData[11] = byte(n >> 8)
-				additionalData[12] = byte(n)
+				// TODO(ar): Fix additional data fill.
+				// ~n := len(payload) - c.Overhead()
+				// ~additionalData[11] = byte(n >> 8)
+				// ~additionalData[12] = byte(n)
 			}
 
 			var err error
@@ -411,8 +419,8 @@ func (hc *halfConn) decrypt(record []byte) ([]byte, recordType, error) {
 
 		n := len(payload) - macSize - paddingLen
 		n = subtle.ConstantTimeSelect(int(uint32(n)>>31), 0, n) // if n < 0 { n = 0 }
-		record[3] = byte(n >> 8)
-		record[4] = byte(n)
+		record[10] = byte(n >> 8)
+		record[11] = byte(n)
 		remoteMAC := payload[n : n+macSize]
 		localMAC := hc.mac.MAC(hc.seq[0:], record[:recordHeaderLen], payload[:n], payload[n+macSize:])
 
@@ -524,8 +532,8 @@ func (hc *halfConn) encrypt(record, payload []byte, rand io.Reader) ([]byte, err
 
 	// Update length to include nonce, MAC and any block padding needed.
 	n := len(record) - recordHeaderLen
-	record[3] = byte(n >> 8)
-	record[4] = byte(n)
+	record[10] = byte(n >> 8)
+	record[11] = byte(n)
 	hc.incSeq()
 
 	return record, nil
@@ -612,7 +620,10 @@ func (c *Conn) readRecordOrCCS(expectChangeCipherSpec bool) error {
 	}
 
 	vers := uint16(hdr[1])<<8 | uint16(hdr[2])
-	n := int(hdr[3])<<8 | int(hdr[4])
+	epoch := uint16(hdr[4]) | uint16(hdr[3])<<8
+	dseq := uint64(hdr[9]) | uint64(hdr[8])<<8 | uint64(hdr[7])<<16 | uint64(hdr[6])<<24 | uint64(hdr[5])<<32
+	n := int(hdr[10])<<8 | int(hdr[11])
+
 	if c.haveVers && c.vers != VersionTLS13 && vers != c.vers {
 		c.sendAlert(alertProtocolVersion)
 		msg := fmt.Sprintf("received record with version %x when expecting version %x", vers, c.vers)
@@ -731,6 +742,9 @@ func (c *Conn) readRecordOrCCS(expectChangeCipherSpec bool) error {
 		}
 		c.hand.Write(data)
 	}
+
+	c.in.dseq = dseq
+	c.in.epoch = epoch
 
 	return nil
 }
@@ -934,8 +948,14 @@ func (c *Conn) writeRecordLocked(typ recordType, data []byte) (int, error) {
 		}
 		c.outBuf[1] = byte(vers >> 8)
 		c.outBuf[2] = byte(vers)
-		c.outBuf[3] = byte(m >> 8)
-		c.outBuf[4] = byte(m)
+		binary.BigEndian.PutUint16(c.outBuf[3:5], c.out.epoch)
+
+		seqBuf := make([]byte, 8)
+		binary.BigEndian.PutUint64(seqBuf, c.out.dseq)
+		copy(c.outBuf[5:9], seqBuf[3:5])
+
+		c.outBuf[10] = byte(m >> 8)
+		c.outBuf[11] = byte(m)
 
 		var err error
 		c.outBuf, err = c.out.encrypt(c.outBuf, data[:m], c.config.rand())
