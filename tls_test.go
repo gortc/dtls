@@ -349,6 +349,7 @@ func TestTLSUniqueMatches(t *testing.T) {
 }
 
 func TestVerifyHostname(t *testing.T) {
+	t.Skip("DTLS")
 	testenv.MustHaveExternalNetwork(t)
 
 	c, err := Dial("tcp", "www.google.com:https", nil)
@@ -372,6 +373,7 @@ func TestVerifyHostname(t *testing.T) {
 }
 
 func TestVerifyHostnameResumed(t *testing.T) {
+	t.Skip("DTLS")
 	t.Run("TLSv12", func(t *testing.T) { testVerifyHostnameResumed(t, VersionTLS12) })
 	t.Run("TLSv13", func(t *testing.T) { testVerifyHostnameResumed(t, VersionTLS13) })
 }
@@ -983,6 +985,9 @@ func TestConnectionState(t *testing.T) {
 		case VersionTLS13:
 			name = "TLSv13"
 		}
+		if v == VersionTLS13 {
+			t.Skip("DTLS")
+		}
 		t.Run(name, func(t *testing.T) {
 			config := &Config{
 				Time:         now,
@@ -1107,6 +1112,7 @@ func expectVersion(t *testing.T, clientConfig, serverConfig *Config, v uint16) {
 
 // TestTLS13Switch checks the behavior of GODEBUG=tls13=[0|1]. See Issue 30055.
 func TestTLS13Switch(t *testing.T) {
+	t.Skip("DTLS")
 	defer func(savedGODEBUG string) {
 		os.Setenv("GODEBUG", savedGODEBUG)
 	}(os.Getenv("GODEBUG"))

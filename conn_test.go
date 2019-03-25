@@ -171,7 +171,7 @@ func runDynamicRecordSizingTest(t *testing.T, config *Config) {
 				return
 			}
 
-			length := int(recordHeader[3])<<8 | int(recordHeader[4])
+			length := int(recordHeader[10])<<8 | int(recordHeader[11])
 			if len(record) < length {
 				record = make([]byte, length)
 			}
@@ -259,6 +259,7 @@ func TestDynamicRecordSizingWithAEAD(t *testing.T) {
 }
 
 func TestDynamicRecordSizingWithTLSv13(t *testing.T) {
+	t.Skip("DTLS")
 	config := testConfig.Clone()
 	runDynamicRecordSizingTest(t, config)
 }

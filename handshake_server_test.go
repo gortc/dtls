@@ -56,7 +56,7 @@ func init() {
 		Certificates:       make([]Certificate, 2),
 		InsecureSkipVerify: true,
 		MinVersion:         VersionSSL30,
-		MaxVersion:         VersionTLS13,
+		MaxVersion:         VersionTLS12,
 		CipherSuites:       allCipherSuites(),
 	}
 	testConfig.Certificates[0].Certificate = [][]byte{testRSACertificate}
@@ -223,6 +223,8 @@ func TestDontSelectRSAWithECDSAKey(t *testing.T) {
 }
 
 func TestRenegotiationExtension(t *testing.T) {
+	// TODO(ar): Adapt to DTLS
+	t.Skip("TODO: DTLS")
 	clientHello := &clientHelloMsg{
 		vers:                         VersionTLS12,
 		compressionMethods:           []uint8{compressionNone},
@@ -435,7 +437,10 @@ func TestCipherSuitePreference(t *testing.T) {
 
 func TestSCTHandshake(t *testing.T) {
 	t.Run("TLSv12", func(t *testing.T) { testSCTHandshake(t, VersionTLS12) })
-	t.Run("TLSv13", func(t *testing.T) { testSCTHandshake(t, VersionTLS13) })
+	t.Run("TLSv13", func(t *testing.T) {
+		t.Skip("DTLS")
+		testSCTHandshake(t, VersionTLS13)
+	})
 }
 
 func testSCTHandshake(t *testing.T, version uint16) {
@@ -740,6 +745,8 @@ func (test *serverTest) run(t *testing.T, write bool) {
 }
 
 func runServerTestForVersion(t *testing.T, template *serverTest, version, option string) {
+	t.Skip("DTLS: Not implemented")
+
 	t.Run(version, func(t *testing.T) {
 		// Make a deep copy of the template before going parallel.
 		test := *template
@@ -782,6 +789,7 @@ func runServerTestTLS13(t *testing.T, template *serverTest) {
 }
 
 func TestHandshakeServerRSARC4(t *testing.T) {
+	t.Skip("DTLS")
 	test := &serverTest{
 		name:    "RSA-RC4",
 		command: []string{"openssl", "s_client", "-no_ticket", "-cipher", "RC4-SHA"},
@@ -793,6 +801,7 @@ func TestHandshakeServerRSARC4(t *testing.T) {
 }
 
 func TestHandshakeServerRSA3DES(t *testing.T) {
+	t.Skip("DTLS")
 	test := &serverTest{
 		name:    "RSA-3DES",
 		command: []string{"openssl", "s_client", "-no_ticket", "-cipher", "DES-CBC3-SHA"},
@@ -803,6 +812,7 @@ func TestHandshakeServerRSA3DES(t *testing.T) {
 }
 
 func TestHandshakeServerRSAAES(t *testing.T) {
+	t.Skip("DTLS")
 	test := &serverTest{
 		name:    "RSA-AES",
 		command: []string{"openssl", "s_client", "-no_ticket", "-cipher", "AES128-SHA"},
@@ -813,6 +823,7 @@ func TestHandshakeServerRSAAES(t *testing.T) {
 }
 
 func TestHandshakeServerAESGCM(t *testing.T) {
+	t.Skip("DTLS")
 	test := &serverTest{
 		name:    "RSA-AES-GCM",
 		command: []string{"openssl", "s_client", "-no_ticket", "-cipher", "ECDHE-RSA-AES128-GCM-SHA256"},
@@ -821,6 +832,7 @@ func TestHandshakeServerAESGCM(t *testing.T) {
 }
 
 func TestHandshakeServerAES256GCMSHA384(t *testing.T) {
+	t.Skip("DTLS")
 	test := &serverTest{
 		name:    "RSA-AES256-GCM-SHA384",
 		command: []string{"openssl", "s_client", "-no_ticket", "-cipher", "ECDHE-RSA-AES256-GCM-SHA384"},
@@ -829,6 +841,7 @@ func TestHandshakeServerAES256GCMSHA384(t *testing.T) {
 }
 
 func TestHandshakeServerAES128SHA256(t *testing.T) {
+	t.Skip("DTLS")
 	test := &serverTest{
 		name:    "AES128-SHA256",
 		command: []string{"openssl", "s_client", "-no_ticket", "-ciphersuites", "TLS_AES_128_GCM_SHA256"},
@@ -836,6 +849,7 @@ func TestHandshakeServerAES128SHA256(t *testing.T) {
 	runServerTestTLS13(t, test)
 }
 func TestHandshakeServerAES256SHA384(t *testing.T) {
+	t.Skip("DTLS")
 	test := &serverTest{
 		name:    "AES256-SHA384",
 		command: []string{"openssl", "s_client", "-no_ticket", "-ciphersuites", "TLS_AES_256_GCM_SHA384"},
@@ -843,6 +857,7 @@ func TestHandshakeServerAES256SHA384(t *testing.T) {
 	runServerTestTLS13(t, test)
 }
 func TestHandshakeServerCHACHA20SHA256(t *testing.T) {
+	t.Skip("DTLS")
 	test := &serverTest{
 		name:    "CHACHA20-SHA256",
 		command: []string{"openssl", "s_client", "-no_ticket", "-ciphersuites", "TLS_CHACHA20_POLY1305_SHA256"},
@@ -851,6 +866,7 @@ func TestHandshakeServerCHACHA20SHA256(t *testing.T) {
 }
 
 func TestHandshakeServerECDHEECDSAAES(t *testing.T) {
+	t.Skip("DTLS")
 	config := testConfig.Clone()
 	config.Certificates = make([]Certificate, 1)
 	config.Certificates[0].Certificate = [][]byte{testECDSACertificate}
@@ -868,6 +884,7 @@ func TestHandshakeServerECDHEECDSAAES(t *testing.T) {
 }
 
 func TestHandshakeServerX25519(t *testing.T) {
+	t.Skip("DTLS")
 	config := testConfig.Clone()
 	config.CurvePreferences = []CurveID{X25519}
 
@@ -881,6 +898,7 @@ func TestHandshakeServerX25519(t *testing.T) {
 }
 
 func TestHandshakeServerP256(t *testing.T) {
+	t.Skip("DTLS")
 	config := testConfig.Clone()
 	config.CurvePreferences = []CurveID{CurveP256}
 
@@ -894,6 +912,7 @@ func TestHandshakeServerP256(t *testing.T) {
 }
 
 func TestHandshakeServerHelloRetryRequest(t *testing.T) {
+	t.Skip("DTLS")
 	config := testConfig.Clone()
 	config.CurvePreferences = []CurveID{CurveP256}
 
@@ -906,6 +925,7 @@ func TestHandshakeServerHelloRetryRequest(t *testing.T) {
 }
 
 func TestHandshakeServerALPN(t *testing.T) {
+	t.Skip("DTLS")
 	config := testConfig.Clone()
 	config.NextProtos = []string{"proto1", "proto2"}
 
@@ -928,6 +948,7 @@ func TestHandshakeServerALPN(t *testing.T) {
 }
 
 func TestHandshakeServerALPNNoMatch(t *testing.T) {
+	t.Skip("DTLS")
 	config := testConfig.Clone()
 	config.NextProtos = []string{"proto3"}
 
@@ -954,6 +975,7 @@ func TestHandshakeServerALPNNoMatch(t *testing.T) {
 // "snitest.com", which happens to match the CN of testSNICertificate. The test
 // verifies that the server correctly selects that certificate.
 func TestHandshakeServerSNI(t *testing.T) {
+	t.Skip("DTLS")
 	test := &serverTest{
 		name:    "SNI",
 		command: []string{"openssl", "s_client", "-no_ticket", "-cipher", "AES128-SHA", "-servername", "snitest.com"},
@@ -964,6 +986,7 @@ func TestHandshakeServerSNI(t *testing.T) {
 // TestHandshakeServerSNICertForName is similar to TestHandshakeServerSNI, but
 // tests the dynamic GetCertificate method
 func TestHandshakeServerSNIGetCertificate(t *testing.T) {
+	t.Skip("DTLS")
 	config := testConfig.Clone()
 
 	// Replace the NameToCertificate map with a GetCertificate function
@@ -986,6 +1009,7 @@ func TestHandshakeServerSNIGetCertificate(t *testing.T) {
 // GetCertificate method doesn't return a cert, we fall back to what's in
 // the NameToCertificate map.
 func TestHandshakeServerSNIGetCertificateNotFound(t *testing.T) {
+	t.Skip("DTLS")
 	config := testConfig.Clone()
 
 	config.GetCertificate = func(clientHello *ClientHelloInfo) (*Certificate, error) {
@@ -1002,6 +1026,7 @@ func TestHandshakeServerSNIGetCertificateNotFound(t *testing.T) {
 // TestHandshakeServerSNICertForNameError tests to make sure that errors in
 // GetCertificate result in a tls alert.
 func TestHandshakeServerSNIGetCertificateError(t *testing.T) {
+	t.Skip("DTLS")
 	const errMsg = "TestHandshakeServerSNIGetCertificateError error"
 
 	serverConfig := testConfig.Clone()
@@ -1054,6 +1079,7 @@ func TestHandshakeServerEmptyCertificates(t *testing.T) {
 // TestCipherSuiteCertPreferance ensures that we select an RSA ciphersuite with
 // an RSA certificate and an ECDSA ciphersuite with an ECDSA certificate.
 func TestCipherSuiteCertPreferenceECDSA(t *testing.T) {
+	t.Skip("DTLS")
 	config := testConfig.Clone()
 	config.CipherSuites = []uint16{TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA, TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA}
 	config.PreferServerCipherSuites = true
@@ -1083,6 +1109,7 @@ func TestCipherSuiteCertPreferenceECDSA(t *testing.T) {
 }
 
 func TestServerResumption(t *testing.T) {
+	t.Skip("DTLS")
 	sessionFilePath := tempFile("")
 	defer os.Remove(sessionFilePath)
 
@@ -1127,6 +1154,7 @@ func TestServerResumption(t *testing.T) {
 }
 
 func TestServerResumptionDisabled(t *testing.T) {
+	t.Skip("DTLS")
 	sessionFilePath := tempFile("")
 	defer os.Remove(sessionFilePath)
 
@@ -1162,6 +1190,7 @@ func TestServerResumptionDisabled(t *testing.T) {
 }
 
 func TestFallbackSCSV(t *testing.T) {
+	t.Skip("DTLS")
 	serverConfig := Config{
 		Certificates: testConfig.Certificates,
 	}
@@ -1176,6 +1205,7 @@ func TestFallbackSCSV(t *testing.T) {
 }
 
 func TestHandshakeServerExportKeyingMaterial(t *testing.T) {
+	t.Skip("DTLS")
 	test := &serverTest{
 		name:    "ExportKeyingMaterial",
 		command: []string{"openssl", "s_client"},
@@ -1195,6 +1225,7 @@ func TestHandshakeServerExportKeyingMaterial(t *testing.T) {
 }
 
 func TestHandshakeServerRSAPKCS1v15(t *testing.T) {
+	t.Skip("DTLS")
 	test := &serverTest{
 		name:    "RSA-RSAPKCS1v15",
 		command: []string{"openssl", "s_client", "-no_ticket", "-sigalgs", "rsa_pkcs1_sha256"},
@@ -1203,6 +1234,7 @@ func TestHandshakeServerRSAPKCS1v15(t *testing.T) {
 }
 
 func TestHandshakeServerRSAPSS(t *testing.T) {
+	t.Skip("DTLS")
 	test := &serverTest{
 		name:    "RSA-RSAPSS",
 		command: []string{"openssl", "s_client", "-no_ticket", "-sigalgs", "rsa_pss_rsae_sha256"},
@@ -1212,6 +1244,7 @@ func TestHandshakeServerRSAPSS(t *testing.T) {
 }
 
 func TestHandshakeServerPSSDisabled(t *testing.T) {
+	t.Skip("DTLS")
 	test := &serverTest{
 		name:    "RSA-PSS-Disabled",
 		command: []string{"openssl", "s_client", "-no_ticket"},
@@ -1759,6 +1792,8 @@ func TestCloneHash(t *testing.T) {
 }
 
 func TestKeyTooSmallForRSAPSS(t *testing.T) {
+	t.Skip("DTLS")
+
 	clientConn, serverConn := localPipe(t)
 	client := Client(clientConn, testConfig)
 	cert, err := X509KeyPair([]byte(`-----BEGIN CERTIFICATE-----
