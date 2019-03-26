@@ -761,6 +761,7 @@ func (c *Config) cipherSuites() []uint16 {
 }
 
 var supportedVersions = []uint16{
+	VersionDTLS12,
 	VersionTLS13,
 	VersionTLS12,
 	VersionTLS11,
