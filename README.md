@@ -6,7 +6,7 @@
 
 Package dtls implements Datagram Transport Layer Security Version 1.2
 
-Based on TLS implementation from go1.13. 
+Based on TLS implementation from go1.12. 
 Work in progress.
 
 ## RFCs
