@@ -4,7 +4,7 @@
 [![stability-wip](https://img.shields.io/badge/stability-wip-lightgrey.svg)](https://github.com/mkenney/software-guides/blob/master/STABILITY-BADGES.md#work-in-progress)
 # DTLS
 
-Package dtls implements Datagram Transport Layer Security Version 1.2
+Package dtls implements Datagram Transport Layer Security Version 1.2 [[RFC6347](https://tools.ietf.org/html/rfc6347)].
 
 Based on TLS implementation from go1.12. 
 Work in progress.
