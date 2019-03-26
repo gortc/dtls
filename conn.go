@@ -157,14 +157,14 @@ type halfConn struct {
 	seq            [8]byte  // 64-bit sequence number
 	additionalData [13]byte // to avoid allocs; interface method args escape
 
-	// DTLS-specific.
-	epoch uint16
-	dseq  uint64
-
 	nextCipher interface{} // next encryption state
 	nextMac    macFunction // next MAC algorithm
 
 	trafficSecret []byte // current TLS 1.3 traffic secret
+
+	// DTLS-specific.
+	epoch uint16
+	dseq  uint64
 }
 
 func (hc *halfConn) setErrorLocked(err error) error {
