@@ -343,16 +343,13 @@ func (hc *halfConn) decrypt(record []byte) ([]byte, recordType, error) {
 			payload = payload[explicitNonceLen:]
 
 			additionalData := hc.additionalData[:]
-			if hc.version == VersionTLS13 {
-				additionalData = record[:recordHeaderLen]
-			} else {
-				copy(hc.additionalData[:], record[3:11])  // seq
-				copy(hc.additionalData[9:12], record[:4]) // typ, v
 
-				n := len(payload) - c.Overhead()
-				additionalData[11] = byte(n >> 8)
-				additionalData[12] = byte(n)
-			}
+			copy(hc.additionalData[:], record[3:11])  // seq
+			copy(hc.additionalData[9:12], record[:4]) // typ, v
+
+			n := len(payload) - c.Overhead()
+			additionalData[11] = byte(n >> 8)
+			additionalData[12] = byte(n)
 
 			var err error
 			plaintext, err = c.Open(payload[:0], nonce, payload, additionalData)
@@ -492,26 +489,10 @@ func (hc *halfConn) encrypt(record, payload []byte, rand io.Reader) ([]byte, err
 		if len(nonce) == 0 {
 			nonce = hc.seq[:]
 		}
-
-		if hc.version == VersionTLS13 {
-			record = append(record, payload...)
-
-			// Encrypt the actual ContentType and replace the plaintext one.
-			record = append(record, record[0])
-			record[0] = byte(recordTypeApplicationData)
-
-			n := len(payload) + 1 + c.Overhead()
-			record[3] = byte(n >> 8)
-			record[4] = byte(n)
-
-			record = c.Seal(record[:recordHeaderLen],
-				nonce, record[recordHeaderLen:], record[:recordHeaderLen])
-		} else {
-			copy(hc.additionalData[:], record[3:11])      // seq
-			copy(hc.additionalData[9:12], record[:4])     // typ, v
-			copy(hc.additionalData[11:13], record[11:13]) // n
-			record = c.Seal(record, nonce, payload, hc.additionalData[:])
-		}
+		copy(hc.additionalData[:], record[3:11])      // seq
+		copy(hc.additionalData[9:12], record[:4])     // typ, v
+		copy(hc.additionalData[11:13], record[11:13]) // n
+		record = c.Seal(record, nonce, payload, hc.additionalData[:])
 	case cbcMode:
 		blockSize := c.BlockSize()
 		plaintextLen := len(payload) + len(mac)
