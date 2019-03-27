@@ -171,7 +171,7 @@ func runDynamicRecordSizingTest(t *testing.T, config *Config) {
 				return
 			}
 
-			length := int(recordHeader[10])<<8 | int(recordHeader[11])
+			length := int(recordHeader[11])<<8 | int(recordHeader[12])
 			if len(record) < length {
 				record = make([]byte, length)
 			}

@@ -11,7 +11,6 @@ import (
 	"crypto/cipher"
 	"crypto/subtle"
 	"crypto/x509"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -419,8 +418,8 @@ func (hc *halfConn) decrypt(record []byte) ([]byte, recordType, error) {
 
 		n := len(payload) - macSize - paddingLen
 		n = subtle.ConstantTimeSelect(int(uint32(n)>>31), 0, n) // if n < 0 { n = 0 }
-		record[10] = byte(n >> 8)
-		record[11] = byte(n)
+		record[11] = byte(n >> 8)
+		record[12] = byte(n)
 		remoteMAC := payload[n : n+macSize]
 		localMAC := hc.mac.MAC(hc.seq[0:], record[:recordHeaderLen], payload[:n], payload[n+macSize:])
 
@@ -532,8 +531,8 @@ func (hc *halfConn) encrypt(record, payload []byte, rand io.Reader) ([]byte, err
 
 	// Update length to include nonce, MAC and any block padding needed.
 	n := len(record) - recordHeaderLen
-	record[10] = byte(n >> 8)
-	record[11] = byte(n)
+	record[11] = byte(n >> 8)
+	record[12] = byte(n)
 	hc.incSeq()
 
 	return record, nil
@@ -621,8 +620,13 @@ func (c *Conn) readRecordOrCCS(expectChangeCipherSpec bool) error {
 
 	vers := uint16(hdr[1])<<8 | uint16(hdr[2])
 	epoch := uint16(hdr[4]) | uint16(hdr[3])<<8
-	dseq := uint64(hdr[9]) | uint64(hdr[8])<<8 | uint64(hdr[7])<<16 | uint64(hdr[6])<<24 | uint64(hdr[5])<<32
-	n := int(hdr[10])<<8 | int(hdr[11])
+	dseq := uint64(hdr[10]) |
+		uint64(hdr[9])<<8 |
+		uint64(hdr[8])<<16 |
+		uint64(hdr[7])<<24 |
+		uint64(hdr[6])<<32 |
+		uint64(hdr[5])<<40
+	n := int(hdr[11])<<8 | int(hdr[12])
 
 	if c.haveVers && c.vers != VersionTLS13 && vers != c.vers {
 		c.sendAlert(alertProtocolVersion)
@@ -946,16 +950,22 @@ func (c *Conn) writeRecordLocked(typ recordType, data []byte) (int, error) {
 			// See RFC 8446, Section 5.1.
 			vers = VersionTLS12
 		}
+
 		c.outBuf[1] = byte(vers >> 8)
 		c.outBuf[2] = byte(vers)
-		binary.BigEndian.PutUint16(c.outBuf[3:5], c.out.epoch)
 
-		seqBuf := make([]byte, 8)
-		binary.BigEndian.PutUint64(seqBuf, c.out.dseq)
-		copy(c.outBuf[5:9], seqBuf[3:5])
+		c.outBuf[3] = byte(c.out.epoch >> 8)
+		c.outBuf[4] = byte(c.out.epoch)
 
-		c.outBuf[10] = byte(m >> 8)
-		c.outBuf[11] = byte(m)
+		c.outBuf[5] = byte(c.out.dseq >> 40)
+		c.outBuf[6] = byte(c.out.dseq >> 32)
+		c.outBuf[7] = byte(c.out.dseq >> 24)
+		c.outBuf[8] = byte(c.out.dseq >> 16)
+		c.outBuf[9] = byte(c.out.dseq >> 8)
+		c.outBuf[10] = byte(c.out.dseq)
+
+		c.outBuf[11] = byte(m >> 8)
+		c.outBuf[12] = byte(m)
 
 		var err error
 		c.outBuf, err = c.out.encrypt(c.outBuf, data[:m], c.config.rand())

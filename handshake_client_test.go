@@ -1393,11 +1393,11 @@ func TestHostnameInSNI(t *testing.T) {
 			Client(c, &Config{ServerName: host, InsecureSkipVerify: true}).Handshake()
 		}(tt.in)
 
-		var header [12]byte
+		var header [13]byte
 		if _, err := io.ReadFull(s, header[:]); err != nil {
 			t.Fatal(err)
 		}
-		recordLen := int(header[10])<<8 | int(header[11])
+		recordLen := int(header[11])<<8 | int(header[12])
 
 		record := make([]byte, recordLen)
 		if _, err := io.ReadFull(s, record[:]); err != nil {
