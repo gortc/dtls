@@ -12,8 +12,6 @@ import (
 	"encoding/asn1"
 	"errors"
 	"fmt"
-	"hash"
-	"io"
 )
 
 // pickSignatureAlgorithm selects a signature algorithm that is compatible with
@@ -109,30 +107,6 @@ func verifyHandshakeSignature(sigType uint8, pubkey crypto.PublicKey, hashFunc c
 	return nil
 }
 
-const (
-	serverSignatureContext = "TLS 1.3, server CertificateVerify\x00"
-	clientSignatureContext = "TLS 1.3, client CertificateVerify\x00"
-)
-
-var signaturePadding = []byte{
-	0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
-	0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
-	0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
-	0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
-	0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
-	0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
-	0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
-	0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20,
-}
-
-// writeSignedMessage writes the content to be signed by certificate keys in TLS
-// 1.3 to sigHash. See RFC 8446, Section 4.4.3.
-func writeSignedMessage(sigHash io.Writer, context string, transcript hash.Hash) {
-	sigHash.Write(signaturePadding)
-	io.WriteString(sigHash, context)
-	sigHash.Write(transcript.Sum(nil))
-}
-
 // signatureSchemesForCertificate returns the list of supported SignatureSchemes
 // for a given certificate, based on the public key and the protocol version. It
 // does not support the crypto.Decrypter interface, so shouldn't be used on the
@@ -186,36 +160,4 @@ func signatureSchemesForCertificate(version uint16, cert *Certificate) []Signatu
 	default:
 		return nil
 	}
-}
-
-// unsupportedCertificateError returns a helpful error for certificates with
-// an unsupported private key.
-func unsupportedCertificateError(cert *Certificate) error {
-	switch cert.PrivateKey.(type) {
-	case rsa.PrivateKey, ecdsa.PrivateKey:
-		return fmt.Errorf("tls: unsupported certificate: private key is %T, expected *%T",
-			cert.PrivateKey, cert.PrivateKey)
-	}
-
-	signer, ok := cert.PrivateKey.(crypto.Signer)
-	if !ok {
-		return fmt.Errorf("tls: certificate private key (%T) does not implement crypto.Signer",
-			cert.PrivateKey)
-	}
-
-	switch pub := signer.Public().(type) {
-	case *ecdsa.PublicKey:
-		switch pub.Curve {
-		case elliptic.P256():
-		case elliptic.P384():
-		case elliptic.P521():
-		default:
-			return fmt.Errorf("tls: unsupported certificate curve (%s)", pub.Curve.Params().Name)
-		}
-	case *rsa.PublicKey:
-	default:
-		return fmt.Errorf("tls: unsupported certificate key (%T)", pub)
-	}
-
-	return fmt.Errorf("tls: internal error: unsupported key (%T)", cert.PrivateKey)
 }
