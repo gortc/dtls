@@ -153,7 +153,7 @@ type halfConn struct {
 	version        uint16      // protocol version
 	cipher         interface{} // cipher algorithm
 	mac            macFunction
-	seq            [8]byte  // 64-bit sequence number
+	seq            [8]byte  // to avoid allocs; epoch and dseq concated
 	additionalData [13]byte // to avoid allocs; interface method args escape
 
 	nextCipher interface{} // next encryption state
@@ -161,9 +161,8 @@ type halfConn struct {
 
 	trafficSecret []byte // current TLS 1.3 traffic secret
 
-	// DTLS-specific.
 	epoch uint16
-	dseq  uint64
+	dseq  uint64 // explicit sequence number
 }
 
 func (hc *halfConn) setErrorLocked(err error) error {
@@ -189,9 +188,8 @@ func (hc *halfConn) changeCipherSpec() error {
 	hc.mac = hc.nextMac
 	hc.nextCipher = nil
 	hc.nextMac = nil
-	for i := range hc.seq {
-		hc.seq[i] = 0
-	}
+	hc.epoch++
+	hc.dseq = 0
 	return nil
 }
 
@@ -199,26 +197,14 @@ func (hc *halfConn) setTrafficSecret(suite *cipherSuiteTLS13, secret []byte) {
 	hc.trafficSecret = secret
 	key, iv := suite.trafficKey(secret)
 	hc.cipher = suite.aead(key, iv)
-	for i := range hc.seq {
-		hc.seq[i] = 0
-	}
+	hc.epoch++
+	hc.dseq = 0
 }
 
 // incSeq increments the sequence number.
 func (hc *halfConn) incSeq() {
 	hc.dseq++
-
-	for i := 7; i >= 0; i-- {
-		hc.seq[i]++
-		if hc.seq[i] != 0 {
-			return
-		}
-	}
-
-	// Not allowed to let sequence number wrap.
-	// Instead, must renegotiate before it does.
-	// Not likely enough to bother.
-	panic("TLS: sequence number wraparound")
+	// TODO(ar): Care about dseq wrap?
 }
 
 // explicitNonceLen returns the number of bytes of explicit nonce or IV included
@@ -316,12 +302,7 @@ func (hc *halfConn) decrypt(record []byte) ([]byte, recordType, error) {
 	var plaintext []byte
 	typ := recordType(record[0])
 	payload := record[recordHeaderLen:]
-
-	// In TLS 1.3, change_cipher_spec messages are to be ignored without being
-	// decrypted. See RFC 8446, Appendix D.4.
-	if hc.version == VersionTLS13 && typ == recordTypeChangeCipherSpec {
-		return payload, typ, nil
-	}
+	copy(hc.seq[:], record[3:11])
 
 	paddingGood := byte(255)
 	paddingLen := 0
@@ -451,6 +432,8 @@ func (hc *halfConn) encrypt(record, payload []byte, rand io.Reader) ([]byte, err
 	if hc.cipher == nil {
 		return append(record, payload...), nil
 	}
+
+	copy(hc.seq[:], record[3:11])
 
 	var explicitNonce []byte
 	if explicitNonceLen := hc.explicitNonceLen(); explicitNonceLen > 0 {
@@ -1191,8 +1174,6 @@ func (c *Conn) handlePostHandshakeMessage() error {
 	}
 
 	switch msg := msg.(type) {
-	case *newSessionTicketMsgTLS13:
-		return c.handleNewSessionTicket(msg)
 	case *keyUpdateMsg:
 		return c.handleKeyUpdate(msg)
 	default:

@@ -44,14 +44,6 @@ func (c *Conn) serverHandshake() error {
 		return err
 	}
 
-	if c.vers == VersionTLS13 {
-		hs := serverHandshakeStateTLS13{
-			c:           c,
-			clientHello: clientHello,
-		}
-		return hs.handshake()
-	}
-
 	hs := serverHandshakeState{
 		c:           c,
 		clientHello: clientHello,

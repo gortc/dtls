@@ -144,12 +144,12 @@ func (c *Conn) clientHandshake() (err error) {
 	// need to be reset.
 	c.didResume = false
 
-	hello, ecdheParams, err := c.makeClientHello()
+	hello, _, err := c.makeClientHello()
 	if err != nil {
 		return err
 	}
 
-	cacheKey, session, earlySecret, binderKey := c.loadSession(hello)
+	cacheKey, session, _, _ := c.loadSession(hello)
 	if cacheKey != "" && session != nil {
 		defer func() {
 			// If we got a handshake failure when resuming a session, throw away
@@ -181,21 +181,6 @@ func (c *Conn) clientHandshake() (err error) {
 
 	if err := c.pickTLSVersion(serverHello); err != nil {
 		return err
-	}
-
-	if c.vers == VersionTLS13 {
-		hs := &clientHandshakeStateTLS13{
-			c:           c,
-			serverHello: serverHello,
-			hello:       hello,
-			ecdheParams: ecdheParams,
-			session:     session,
-			earlySecret: earlySecret,
-			binderKey:   binderKey,
-		}
-
-		// In TLS 1.3, session tickets are delivered after the handshake.
-		return hs.handshake()
 	}
 
 	hs := &clientHandshakeState{
