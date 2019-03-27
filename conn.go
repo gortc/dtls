@@ -346,12 +346,12 @@ func (hc *halfConn) decrypt(record []byte) ([]byte, recordType, error) {
 			if hc.version == VersionTLS13 {
 				additionalData = record[:recordHeaderLen]
 			} else {
-				copy(additionalData, hc.seq[:])
-				copy(additionalData[8:], record[:3])
-				// TODO(ar): Fix additional data fill.
-				// ~n := len(payload) - c.Overhead()
-				// ~additionalData[11] = byte(n >> 8)
-				// ~additionalData[12] = byte(n)
+				copy(hc.additionalData[:], record[3:11])  // seq
+				copy(hc.additionalData[9:12], record[:4]) // typ, v
+
+				n := len(payload) - c.Overhead()
+				additionalData[11] = byte(n >> 8)
+				additionalData[12] = byte(n)
 			}
 
 			var err error
@@ -507,8 +507,9 @@ func (hc *halfConn) encrypt(record, payload []byte, rand io.Reader) ([]byte, err
 			record = c.Seal(record[:recordHeaderLen],
 				nonce, record[recordHeaderLen:], record[:recordHeaderLen])
 		} else {
-			copy(hc.additionalData[:], hc.seq[:])
-			copy(hc.additionalData[8:], record)
+			copy(hc.additionalData[:], record[3:11])      // seq
+			copy(hc.additionalData[9:12], record[:4])     // typ, v
+			copy(hc.additionalData[11:13], record[11:13]) // n
 			record = c.Seal(record, nonce, payload, hc.additionalData[:])
 		}
 	case cbcMode:
