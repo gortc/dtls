@@ -603,7 +603,7 @@ func (c *Conn) readRecordOrCCS(expectChangeCipherSpec bool) error {
 		// client. Bail out before reading a full 'body', if possible.
 		// The current max version is 3.3 so if the version is >= 16.0,
 		// it's probably not real.
-		if (typ != recordTypeAlert && typ != recordTypeHandshake) || vers >= 0x1000 {
+		if typ != recordTypeAlert && typ != recordTypeHandshake {
 			return c.in.setErrorLocked(c.newRecordHeaderError(c.conn, "first record does not look like a TLS handshake"))
 		}
 	}
