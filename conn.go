@@ -982,13 +982,20 @@ func (c *Conn) readHandshake() (interface{}, error) {
 			return nil, err
 		}
 	}
-	data = c.hand.Next(4 + n)
+	if c.config.dtls {
+		data = c.hand.Next(4 + 8 + n)
+	} else {
+		data = c.hand.Next(4 + n)
+	}
+
 	var m handshakeMessage
 	switch data[0] {
 	case typeHelloRequest:
 		m = new(helloRequestMsg)
 	case typeClientHello:
-		m = new(clientHelloMsg)
+		m = &clientHelloMsg{dtls: c.config.dtls}
+	case typeHelloVerifyRequest:
+		return nil, errors.New("verify request not implemented")
 	case typeServerHello:
 		m = new(serverHelloMsg)
 	case typeNewSessionTicket:

@@ -55,6 +55,7 @@ const (
 const (
 	typeHelloRequest        uint8 = 0
 	typeClientHello         uint8 = 1
+	typeHelloVerifyRequest  uint8 = 3
 	typeServerHello         uint8 = 2
 	typeNewSessionTicket    uint8 = 4
 	typeEndOfEarlyData      uint8 = 5
@@ -601,6 +602,8 @@ type Config struct {
 	// for new tickets and any subsequent keys can be used to decrypt old
 	// tickets.
 	sessionTicketKeys []ticketKey
+
+	dtls bool // TODO(ar): refactor.
 }
 
 // ticketKeyNameLen is the number of bytes of identifier that is prepended to
@@ -670,6 +673,7 @@ func (c *Config) Clone() *Config {
 		Renegotiation:               c.Renegotiation,
 		KeyLogWriter:                c.KeyLogWriter,
 		sessionTicketKeys:           sessionTicketKeys,
+		dtls:                        c.dtls,
 	}
 }
 
@@ -677,6 +681,10 @@ func (c *Config) Clone() *Config {
 // returned by a GetConfigForClient callback then the argument should be the
 // Config that was passed to Server, otherwise it should be nil.
 func (c *Config) serverInit(originalConfig *Config) {
+	if c.MinVersion == VersionDTLS12 {
+		c.dtls = true
+	}
+
 	if c.SessionTicketsDisabled || len(c.ticketKeys()) != 0 {
 		return
 	}

@@ -93,6 +93,7 @@ type clientHelloMsg struct {
 	pskModes                         []uint8
 	pskIdentities                    []pskIdentity
 	pskBinders                       [][]byte
+	dtls                             bool
 }
 
 func (m *clientHelloMsg) marshal() []byte {
@@ -351,13 +352,28 @@ func (m *clientHelloMsg) updateBinders(pskBinders [][]byte) {
 }
 
 func (m *clientHelloMsg) unmarshal(data []byte) bool {
-	*m = clientHelloMsg{raw: data}
+	*m = clientHelloMsg{raw: data, dtls: m.dtls}
 	s := cryptobyte.String(data)
 
-	if !s.Skip(4) || // message type and uint24 length field
-		!s.ReadUint16(&m.vers) || !s.ReadBytes(&m.random, 32) ||
-		!readUint8LengthPrefixed(&s, &m.sessionId) {
-		return false
+	if m.dtls {
+		// Skip message type, length, sequence, frag. offset, frag. length.
+		if !s.Skip(12) {
+			return false
+		}
+		if !s.ReadUint16(&m.vers) ||
+			!s.ReadBytes(&m.random, 32) ||
+			!readUint8LengthPrefixed(&s, &m.sessionId) {
+			return false
+		}
+		if !readUint8LengthPrefixed(&s, &m.cookie) {
+			return false
+		}
+	} else {
+		if !s.Skip(4) || // message type and uint24 length field
+			!s.ReadUint16(&m.vers) || !s.ReadBytes(&m.random, 32) ||
+			!readUint8LengthPrefixed(&s, &m.sessionId) {
+			return false
+		}
 	}
 
 	var cipherSuites cryptobyte.String
