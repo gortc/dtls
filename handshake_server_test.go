@@ -577,8 +577,6 @@ func (test *serverTest) connFromCommand() (conn *recordingConn, child *exec.Cmd,
 	if err != nil {
 		return nil, nil, err
 	}
-	defer l.Close()
-
 	port := l.LocalAddr().(*net.UDPAddr).Port
 
 	var command []string
