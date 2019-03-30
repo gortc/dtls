@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"math/big"
 	"net"
 	"os"
@@ -563,13 +564,13 @@ type serverTest struct {
 	wait bool
 }
 
-var defaultClientCommand = []string{"openssl", "s_client", "-no_ticket"}
+var defaultClientCommand = []string{"openssl", "s_client", "-no_ticket", "-dtls1"}
 
 // connFromCommand starts opens a listening socket and starts the reference
 // client to connect to it. It returns a recordingConn that wraps the resulting
 // connection.
 func (test *serverTest) connFromCommand() (conn *recordingConn, child *exec.Cmd, err error) {
-	l, err := net.ListenTCP("tcp", &net.TCPAddr{
+	l, err := net.ListenUDP("udp", &net.UDPAddr{
 		IP:   net.IPv4(127, 0, 0, 1),
 		Port: 0,
 	})
@@ -578,7 +579,7 @@ func (test *serverTest) connFromCommand() (conn *recordingConn, child *exec.Cmd,
 	}
 	defer l.Close()
 
-	port := l.Addr().(*net.TCPAddr).Port
+	port := l.LocalAddr().(*net.UDPAddr).Port
 
 	var command []string
 	command = append(command, test.command...)
@@ -596,28 +597,68 @@ func (test *serverTest) connFromCommand() (conn *recordingConn, child *exec.Cmd,
 		return nil, nil, err
 	}
 
-	connChan := make(chan interface{})
+	lconn, rconn := net.Pipe()
+
+	addrChan := make(chan net.Addr)
 	go func() {
-		tcpConn, err := l.Accept()
-		if err != nil {
-			connChan <- err
+		buf := make([]byte, 8*1024)
+		gotFirstPacket := false
+		for {
+			n, addr, err := l.ReadFrom(buf)
+			if !gotFirstPacket {
+				gotFirstPacket = true
+				addrChan <- addr
+			}
+			if err != nil {
+				log.Println("got read err:", err)
+				_ = lconn.Close()
+				_ = rconn.Close()
+				return
+			}
+			n, err = rconn.Write(buf[:n])
+			if err != nil {
+				return
+			}
 		}
-		connChan <- tcpConn
 	}()
 
-	var tcpConn net.Conn
-	select {
-	case connOrError := <-connChan:
-		if err, ok := connOrError.(error); ok {
-			return nil, nil, err
+	gotAddr := make(chan struct{})
+	gotErr := make(chan error)
+	go func() {
+		buf := make([]byte, 8*1024)
+		var addr net.Addr
+		select {
+		case addr = <-addrChan:
+			// got addr
+			gotAddr <- struct{}{}
+		case <-time.After(time.Second * 2):
+			// timed out
+			gotErr <- errors.New("timed out waiting for first packet")
 		}
-		tcpConn = connOrError.(net.Conn)
-	case <-time.After(2 * time.Second):
-		return nil, nil, errors.New("timed out waiting for connection from child process")
-	}
+		for {
+			n, err := rconn.Read(buf)
+			if err != nil {
+				log.Println("got read err:", err)
+				_ = lconn.Close()
+				_ = rconn.Close()
+				return
+			}
+			n, err = l.WriteTo(buf[:n], addr)
+			if err != nil {
+				return
+			}
+		}
+	}()
 
 	record := &recordingConn{
-		Conn: tcpConn,
+		Conn: lconn,
+	}
+
+	select {
+	case <-gotAddr:
+		// OK
+	case err := <-gotErr:
+		return nil, nil, err
 	}
 
 	return record, cmd, nil
