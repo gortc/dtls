@@ -646,7 +646,9 @@ func (m *serverHelloMsg) marshal() []byte {
 
 	var b cryptobyte.Builder
 	b.AddUint8(typeServerHello)
-	b.AddUint24LengthPrefixed(func(b *cryptobyte.Builder) {
+
+	var tail cryptobyte.Builder
+	tail.AddUint24LengthPrefixed(func(b *cryptobyte.Builder) {
 		b.AddUint16(m.vers)
 		addBytesWithLength(b, m.random, 32)
 		b.AddUint8LengthPrefixed(func(b *cryptobyte.Builder) {
@@ -752,6 +754,14 @@ func (m *serverHelloMsg) marshal() []byte {
 			*b = bWithoutExtensions
 		}
 	})
+
+	tb := tail.BytesOrPanic()
+	n := uint32(len(tb[3:]))
+	b.AddUint24(n) // length
+	b.AddUint16(0) // mseq
+	b.AddUint24(0) // frag offs
+	b.AddUint24(n) // frag len
+	b.AddBytes(tb[3:])
 
 	m.raw = b.BytesOrPanic()
 	return m.raw
@@ -1248,18 +1258,31 @@ func (m *certificateMsg) marshal() (x []byte) {
 	}
 
 	length := 3 + 3*len(m.certificates) + i
-	x = make([]byte, 4+length)
+	x = make([]byte, 4+8+length)
 	x[0] = typeCertificate
 	x[1] = uint8(length >> 16)
 	x[2] = uint8(length >> 8)
 	x[3] = uint8(length)
 
-	certificateOctets := length - 3
-	x[4] = uint8(certificateOctets >> 16)
-	x[5] = uint8(certificateOctets >> 8)
-	x[6] = uint8(certificateOctets)
+	// TODO(ar): set frag and mseq
+	// mseq
+	x[4] = 0
+	x[5] = 0
+	// frag offs
+	x[6] = 0
+	x[7] = 0
+	x[8] = 0
+	// frag len
+	x[9] = uint8(length >> 16)
+	x[10] = uint8(length >> 8)
+	x[11] = uint8(length)
 
-	y := x[7:]
+	certificateOctets := length - 3
+	x[12] = uint8(certificateOctets >> 16)
+	x[13] = uint8(certificateOctets >> 8)
+	x[14] = uint8(certificateOctets)
+
+	y := x[15:]
 	for _, slice := range m.certificates {
 		y[0] = uint8(len(slice) >> 16)
 		y[1] = uint8(len(slice) >> 8)
@@ -1465,12 +1488,26 @@ func (m *serverKeyExchangeMsg) marshal() []byte {
 		return m.raw
 	}
 	length := len(m.key)
-	x := make([]byte, length+4)
+	x := make([]byte, length+4+8)
 	x[0] = typeServerKeyExchange
 	x[1] = uint8(length >> 16)
 	x[2] = uint8(length >> 8)
 	x[3] = uint8(length)
-	copy(x[4:], m.key)
+
+	// TODO(ar): set frag and mseq
+	// mseq
+	x[4] = 0
+	x[5] = 0
+	// frag offs
+	x[6] = 0
+	x[7] = 0
+	x[8] = 0
+	// frag len
+	x[9] = uint8(length >> 16)
+	x[10] = uint8(length >> 8)
+	x[11] = uint8(length)
+
+	copy(x[12:], m.key)
 
 	m.raw = x
 	return x
@@ -1497,12 +1534,22 @@ func (m *certificateStatusMsg) marshal() []byte {
 
 	var b cryptobyte.Builder
 	b.AddUint8(typeCertificateStatus)
-	b.AddUint24LengthPrefixed(func(b *cryptobyte.Builder) {
+
+	var tail cryptobyte.Builder
+	tail.AddUint24LengthPrefixed(func(b *cryptobyte.Builder) {
 		b.AddUint8(statusTypeOCSP)
 		b.AddUint24LengthPrefixed(func(b *cryptobyte.Builder) {
 			b.AddBytes(m.response)
 		})
 	})
+	// TODO(ar): Set mseq and frag
+	tb := tail.BytesOrPanic()
+	n := uint32(len(tb[3:]))
+	b.AddUint24(n) // length
+	b.AddUint16(0) // mseq
+	b.AddUint24(0) // frag offs
+	b.AddUint24(n) // frag len
+	b.AddBytes(tb[3:])
 
 	m.raw = b.BytesOrPanic()
 	return m.raw
@@ -1525,7 +1572,7 @@ func (m *certificateStatusMsg) unmarshal(data []byte) bool {
 type serverHelloDoneMsg struct{}
 
 func (m *serverHelloDoneMsg) marshal() []byte {
-	x := make([]byte, 4)
+	x := make([]byte, 4+8)
 	x[0] = typeServerHelloDone
 	return x
 }
@@ -1684,16 +1731,29 @@ func (m *certificateRequestMsg) marshal() (x []byte) {
 		length += 2 + 2*len(m.supportedSignatureAlgorithms)
 	}
 
-	x = make([]byte, 4+length)
+	x = make([]byte, 4+8+length)
 	x[0] = typeCertificateRequest
 	x[1] = uint8(length >> 16)
 	x[2] = uint8(length >> 8)
 	x[3] = uint8(length)
 
-	x[4] = uint8(len(m.certificateTypes))
+	// TODO(ar): set frag and mseq
+	// mseq
+	x[4] = 0
+	x[5] = 0
+	// frag offs
+	x[6] = 0
+	x[7] = 0
+	x[8] = 0
+	// frag len
+	x[9] = uint8(length >> 16)
+	x[10] = uint8(length >> 8)
+	x[11] = uint8(length)
 
-	copy(x[5:], m.certificateTypes)
-	y := x[5+len(m.certificateTypes):]
+	x[12] = uint8(len(m.certificateTypes))
+
+	copy(x[13:], m.certificateTypes)
+	y := x[13+len(m.certificateTypes):]
 
 	if m.hasSignatureAlgorithm {
 		n := len(m.supportedSignatureAlgorithms) * 2
