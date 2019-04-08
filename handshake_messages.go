@@ -771,11 +771,19 @@ func (m *serverHelloMsg) unmarshal(data []byte) bool {
 	*m = serverHelloMsg{raw: data}
 	s := cryptobyte.String(data)
 
-	if !s.Skip(4) || // message type and uint24 length field
-		!s.ReadUint16(&m.vers) || !s.ReadBytes(&m.random, 32) ||
-		!readUint8LengthPrefixed(&s, &m.sessionId) ||
-		!s.ReadUint16(&m.cipherSuite) ||
-		!s.ReadUint8(&m.compressionMethod) {
+	if !s.Skip(12) {
+		return false
+	}
+	if !s.ReadUint16(&m.vers) || !s.ReadBytes(&m.random, 32) {
+		return false
+	}
+	if !readUint8LengthPrefixed(&s, &m.sessionId) {
+		return false
+	}
+	if !s.ReadUint16(&m.cipherSuite) {
+		return false
+	}
+	if !s.ReadUint8(&m.compressionMethod) {
 		return false
 	}
 
@@ -1296,18 +1304,18 @@ func (m *certificateMsg) marshal() (x []byte) {
 }
 
 func (m *certificateMsg) unmarshal(data []byte) bool {
-	if len(data) < 7 {
+	if len(data) < 15 {
 		return false
 	}
 
 	m.raw = data
-	certsLen := uint32(data[4])<<16 | uint32(data[5])<<8 | uint32(data[6])
+	certsLen := uint32(data[12])<<16 | uint32(data[13])<<8 | uint32(data[14])
 	if uint32(len(data)) != certsLen+7 {
 		return false
 	}
 
 	numCerts := 0
-	d := data[7:]
+	d := data[15:]
 	for certsLen > 0 {
 		if len(d) < 4 {
 			return false
@@ -1515,10 +1523,10 @@ func (m *serverKeyExchangeMsg) marshal() []byte {
 
 func (m *serverKeyExchangeMsg) unmarshal(data []byte) bool {
 	m.raw = data
-	if len(data) < 4 {
+	if len(data) < 12 {
 		return false
 	}
-	m.key = data[4:]
+	m.key = data[12:]
 	return true
 }
 
@@ -1560,7 +1568,7 @@ func (m *certificateStatusMsg) unmarshal(data []byte) bool {
 	s := cryptobyte.String(data)
 
 	var statusType uint8
-	if !s.Skip(4) || // message type and uint24 length field
+	if !s.Skip(12) || // message type and uint24 length field
 		!s.ReadUint8(&statusType) || statusType != statusTypeOCSP ||
 		!readUint24LengthPrefixed(&s, &m.response) ||
 		len(m.response) == 0 || !s.Empty() {
@@ -1578,7 +1586,7 @@ func (m *serverHelloDoneMsg) marshal() []byte {
 }
 
 func (m *serverHelloDoneMsg) unmarshal(data []byte) bool {
-	return len(data) == 4
+	return len(data) == 4+8
 }
 
 type clientKeyExchangeMsg struct {
@@ -1790,11 +1798,11 @@ func (m *certificateRequestMsg) unmarshal(data []byte) bool {
 	}
 
 	length := uint32(data[1])<<16 | uint32(data[2])<<8 | uint32(data[3])
-	if uint32(len(data))-4 != length {
+	if uint32(len(data))-12 != length {
 		return false
 	}
 
-	numCertTypes := int(data[4])
+	numCertTypes := int(data[12])
 	data = data[5:]
 	if numCertTypes == 0 || len(data) <= numCertTypes {
 		return false

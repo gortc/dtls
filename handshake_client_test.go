@@ -1115,11 +1115,11 @@ func TestKeyLogTLS12(t *testing.T) {
 
 	clientConfig := testConfig.Clone()
 	clientConfig.KeyLogWriter = &clientBuf
-	clientConfig.MaxVersion = VersionTLS12
+	clientConfig.MaxVersion = VersionDTLS12
 
 	serverConfig := testConfig.Clone()
 	serverConfig.KeyLogWriter = &serverBuf
-	serverConfig.MaxVersion = VersionTLS12
+	serverConfig.MaxVersion = VersionDTLS12
 
 	c, s := localPipe(t)
 	done := make(chan bool)
@@ -1161,49 +1161,6 @@ func TestKeyLogTLS12(t *testing.T) {
 
 	checkKeylogLine("client", clientBuf.String())
 	checkKeylogLine("server", serverBuf.String())
-}
-
-func TestKeyLogTLS13(t *testing.T) {
-	t.Skip("DTLS")
-
-	var serverBuf, clientBuf bytes.Buffer
-
-	clientConfig := testConfig.Clone()
-	clientConfig.KeyLogWriter = &clientBuf
-
-	serverConfig := testConfig.Clone()
-	serverConfig.KeyLogWriter = &serverBuf
-
-	c, s := localPipe(t)
-	done := make(chan bool)
-
-	go func() {
-		defer close(done)
-
-		if err := Server(s, serverConfig).Handshake(); err != nil {
-			t.Errorf("server: %s", err)
-			return
-		}
-		s.Close()
-	}()
-
-	if err := Client(c, clientConfig).Handshake(); err != nil {
-		t.Fatalf("client: %s", err)
-	}
-
-	c.Close()
-	<-done
-
-	checkKeylogLines := func(side, loggedLines string) {
-		loggedLines = strings.TrimSpace(loggedLines)
-		lines := strings.Split(loggedLines, "\n")
-		if len(lines) != 4 {
-			t.Errorf("Expected the %s to log 4 lines, got %d", side, len(lines))
-		}
-	}
-
-	checkKeylogLines("client", clientBuf.String())
-	checkKeylogLines("server", serverBuf.String())
 }
 
 func TestHandshakeClientALPNMatch(t *testing.T) {
