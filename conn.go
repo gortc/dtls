@@ -965,7 +965,7 @@ func (c *Conn) writeRecord(typ recordType, data []byte) (int, error) {
 // readHandshake reads the next handshake message from
 // the record layer.
 func (c *Conn) readHandshake() (interface{}, error) {
-	for c.hand.Len() < 4 {
+	for c.hand.Len() < 4+8 {
 		if err := c.readRecord(); err != nil {
 			return nil, err
 		}
@@ -982,11 +982,7 @@ func (c *Conn) readHandshake() (interface{}, error) {
 			return nil, err
 		}
 	}
-	if c.config.dtls {
-		data = c.hand.Next(4 + 8 + n)
-	} else {
-		data = c.hand.Next(4 + n)
-	}
+	data = c.hand.Next(4 + 8 + n)
 
 	var m handshakeMessage
 	switch data[0] {
