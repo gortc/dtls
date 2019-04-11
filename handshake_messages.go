@@ -88,12 +88,12 @@ type clientHelloMsg struct {
 	scts                             bool
 	supportedVersions                []uint16
 	cookie                           []byte
+	cookieDTLS                       []byte
 	keyShares                        []keyShare
 	earlyData                        bool
 	pskModes                         []uint8
 	pskIdentities                    []pskIdentity
 	pskBinders                       [][]byte
-	dtls                             bool
 }
 
 func (m *clientHelloMsg) marshal() []byte {
@@ -103,11 +103,16 @@ func (m *clientHelloMsg) marshal() []byte {
 
 	var b cryptobyte.Builder
 	b.AddUint8(typeClientHello)
-	b.AddUint24LengthPrefixed(func(b *cryptobyte.Builder) {
+
+	var tail cryptobyte.Builder
+	tail.AddUint24LengthPrefixed(func(b *cryptobyte.Builder) {
 		b.AddUint16(m.vers)
 		addBytesWithLength(b, m.random, 32)
 		b.AddUint8LengthPrefixed(func(b *cryptobyte.Builder) {
 			b.AddBytes(m.sessionId)
+		})
+		b.AddUint8LengthPrefixed(func(b *cryptobyte.Builder) {
+			b.AddBytes(m.cookieDTLS)
 		})
 		b.AddUint16LengthPrefixed(func(b *cryptobyte.Builder) {
 			for _, suite := range m.cipherSuites {
@@ -303,6 +308,14 @@ func (m *clientHelloMsg) marshal() []byte {
 		}
 	})
 
+	tb := tail.BytesOrPanic()
+	n := uint32(len(tb[3:]))
+	b.AddUint24(n) // length
+	b.AddUint16(0) // mseq
+	b.AddUint24(0) // frag offs
+	b.AddUint24(n) // frag len
+	b.AddBytes(tb[3:])
+
 	m.raw = b.BytesOrPanic()
 	return m.raw
 }
@@ -352,28 +365,20 @@ func (m *clientHelloMsg) updateBinders(pskBinders [][]byte) {
 }
 
 func (m *clientHelloMsg) unmarshal(data []byte) bool {
-	*m = clientHelloMsg{raw: data, dtls: m.dtls}
+	*m = clientHelloMsg{raw: data}
 	s := cryptobyte.String(data)
 
-	if m.dtls {
-		// Skip message type, length, sequence, frag. offset, frag. length.
-		if !s.Skip(12) {
-			return false
-		}
-		if !s.ReadUint16(&m.vers) ||
-			!s.ReadBytes(&m.random, 32) ||
-			!readUint8LengthPrefixed(&s, &m.sessionId) {
-			return false
-		}
-		if !readUint8LengthPrefixed(&s, &m.cookie) {
-			return false
-		}
-	} else {
-		if !s.Skip(4) || // message type and uint24 length field
-			!s.ReadUint16(&m.vers) || !s.ReadBytes(&m.random, 32) ||
-			!readUint8LengthPrefixed(&s, &m.sessionId) {
-			return false
-		}
+	// Skip message type, length, sequence, frag. offset, frag. length.
+	if !s.Skip(12) {
+		return false
+	}
+	if !s.ReadUint16(&m.vers) ||
+		!s.ReadBytes(&m.random, 32) ||
+		!readUint8LengthPrefixed(&s, &m.sessionId) {
+		return false
+	}
+	if !readUint8LengthPrefixed(&s, &m.cookieDTLS) {
+		return false
 	}
 
 	var cipherSuites cryptobyte.String

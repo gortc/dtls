@@ -1116,10 +1116,12 @@ func TestKeyLogTLS12(t *testing.T) {
 	clientConfig := testConfig.Clone()
 	clientConfig.KeyLogWriter = &clientBuf
 	clientConfig.MaxVersion = VersionDTLS12
+	clientConfig.MinVersion = VersionDTLS12
 
 	serverConfig := testConfig.Clone()
 	serverConfig.KeyLogWriter = &serverBuf
 	serverConfig.MaxVersion = VersionDTLS12
+	serverConfig.MinVersion = VersionDTLS12
 
 	c, s := localPipe(t)
 	done := make(chan bool)

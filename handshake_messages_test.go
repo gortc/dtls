@@ -118,6 +118,7 @@ func (*clientHelloMsg) Generate(rand *rand.Rand, size int) reflect.Value {
 	m.vers = uint16(rand.Intn(65536))
 	m.random = randomBytes(32, rand)
 	m.sessionId = randomBytes(rand.Intn(32), rand)
+	m.cookieDTLS = randomBytes(12, rand)
 	m.cipherSuites = make([]uint16, rand.Intn(63)+1)
 	for i := 0; i < len(m.cipherSuites); i++ {
 		cs := uint16(rand.Int31())

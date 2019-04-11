@@ -993,7 +993,7 @@ func (c *Conn) readHandshake() (interface{}, error) {
 	case typeHelloRequest:
 		m = new(helloRequestMsg)
 	case typeClientHello:
-		m = &clientHelloMsg{dtls: c.config.dtls}
+		m = &clientHelloMsg{}
 	case typeHelloVerifyRequest:
 		return nil, errors.New("verify request not implemented")
 	case typeServerHello:
