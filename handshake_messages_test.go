@@ -36,6 +36,7 @@ var tests = []interface{}{
 	&newSessionTicketMsgTLS13{},
 	&certificateRequestMsgTLS13{},
 	&certificateMsgTLS13{},
+	&helloVerifyRequestMsg{},
 }
 
 func TestMarshalUnmarshal(t *testing.T) {
@@ -418,6 +419,13 @@ func (*certificateMsgTLS13) Generate(rand *rand.Rand, size int) reflect.Value {
 				m.certificate.SignedCertificateTimestamps, randomBytes(rand.Intn(500)+1, rand))
 		}
 	}
+	return reflect.ValueOf(m)
+}
+
+func (*helloVerifyRequestMsg) Generate(rand *rand.Rand, size int) reflect.Value {
+	m := &helloVerifyRequestMsg{}
+	m.cookie = randomBytes(10, rand)
+
 	return reflect.ValueOf(m)
 }
 

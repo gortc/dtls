@@ -1972,3 +1972,57 @@ func (*helloRequestMsg) marshal() []byte {
 func (*helloRequestMsg) unmarshal(data []byte) bool {
 	return len(data) == 4
 }
+
+// RFC 6347 Section 4.2.2
+type helloVerifyRequestMsg struct {
+	vers   uint16
+	raw    []byte
+	cookie []byte
+}
+
+func writeFrag(b, tail *cryptobyte.Builder) {
+	tb := tail.BytesOrPanic()
+	n := uint32(len(tb[3:]))
+	b.AddUint24(n) // length
+	b.AddUint16(0) // mseq
+	b.AddUint24(0) // frag offs
+	b.AddUint24(n) // frag len
+	b.AddBytes(tb[3:])
+}
+
+func (m *helloVerifyRequestMsg) marshal() []byte {
+	if m.raw != nil {
+		return m.raw
+	}
+	var b cryptobyte.Builder
+	b.AddUint8(typeHelloVerifyRequest)
+
+	var tail cryptobyte.Builder
+	tail.AddUint24LengthPrefixed(func(b *cryptobyte.Builder) {
+		b.AddUint16(m.vers)
+		b.AddUint8LengthPrefixed(func(b *cryptobyte.Builder) {
+			b.AddBytes(m.cookie)
+		})
+	})
+
+	writeFrag(&b, &tail)
+
+	m.raw = b.BytesOrPanic()
+	return m.raw
+}
+
+func (m *helloVerifyRequestMsg) unmarshal(data []byte) bool {
+	*m = helloVerifyRequestMsg{raw: data}
+	s := cryptobyte.String(data)
+	// Skip message type, length, sequence, frag. offset, frag. length.
+	if !s.Skip(12) {
+		return false
+	}
+	if !s.ReadUint16(&m.vers) {
+		return false
+	}
+	if !readUint8LengthPrefixed(&s, &m.cookie) {
+		return false
+	}
+	return true
+}
