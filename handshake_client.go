@@ -173,6 +173,18 @@ func (c *Conn) clientHandshake() (err error) {
 		return err
 	}
 
+	if vr, ok := msg.(*helloVerifyRequestMsg); ok {
+		hello.cookieDTLS = append(hello.cookieDTLS[:0], vr.cookie...)
+		if _, err := c.writeRecord(recordTypeHandshake, hello.marshal()); err != nil {
+			return err
+		}
+
+		msg, err = c.readHandshake()
+		if err != nil {
+			return err
+		}
+	}
+
 	serverHello, ok := msg.(*serverHelloMsg)
 	if !ok {
 		c.sendAlert(alertUnexpectedMessage)

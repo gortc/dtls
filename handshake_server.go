@@ -48,6 +48,17 @@ func (c *Conn) serverHandshake() error {
 		c:           c,
 		clientHello: clientHello,
 	}
+	if isDTLS(clientHello.vers) {
+		if err := hs.sendHelloVerifyRequest(); err != nil {
+			return err
+		}
+		clientHello, err = c.readClientHello()
+		if err != nil {
+			return err
+		}
+		hs.clientHello = clientHello
+	}
+
 	return hs.handshake()
 }
 
@@ -639,6 +650,21 @@ func (hs *serverHandshakeState) readFinished(out []byte) error {
 
 	hs.finishedHash.Write(clientFinished.marshal())
 	copy(out, verify)
+	return nil
+}
+
+func (hs *serverHandshakeState) sendHelloVerifyRequest() error {
+	const cookieSize = 16 // TODO(ar): Select cookie size
+	c := hs.c
+	m := new(helloVerifyRequestMsg)
+	m.vers = VersionDTLS12
+	m.cookie = make([]byte, cookieSize)
+	if _, err := io.ReadFull(c.config.rand(), m.cookie); err != nil {
+		return err
+	}
+	if _, err := c.writeRecord(recordTypeHandshake, m.marshal()); err != nil {
+		return err
+	}
 	return nil
 }
 

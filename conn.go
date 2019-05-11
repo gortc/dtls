@@ -190,6 +190,7 @@ func (hc *halfConn) changeCipherSpec() error {
 	hc.nextMac = nil
 	hc.epoch++
 	hc.dseq = 0
+	hc.updateSec()
 	return nil
 }
 
@@ -199,11 +200,25 @@ func (hc *halfConn) setTrafficSecret(suite *cipherSuiteTLS13, secret []byte) {
 	hc.cipher = suite.aead(key, iv)
 	hc.epoch++
 	hc.dseq = 0
+	hc.updateSec()
+}
+
+func (hc *halfConn) updateSec() {
+	hc.seq[0] = byte(hc.epoch >> 8)
+	hc.seq[1] = byte(hc.epoch)
+
+	hc.seq[2] = byte(hc.dseq >> 40)
+	hc.seq[3] = byte(hc.dseq >> 32)
+	hc.seq[4] = byte(hc.dseq >> 24)
+	hc.seq[5] = byte(hc.dseq >> 16)
+	hc.seq[6] = byte(hc.dseq >> 8)
+	hc.seq[7] = byte(hc.dseq)
 }
 
 // incSeq increments the sequence number.
 func (hc *halfConn) incSeq() {
 	hc.dseq++
+	hc.updateSec()
 	// TODO(ar): Care about dseq wrap?
 }
 
@@ -498,7 +513,6 @@ func (hc *halfConn) encrypt(record, payload []byte, rand io.Reader) ([]byte, err
 	n := len(record) - recordHeaderLen
 	record[11] = byte(n >> 8)
 	record[12] = byte(n)
-	hc.incSeq()
 
 	return record, nil
 }
@@ -593,7 +607,7 @@ func (c *Conn) readRecordOrCCS(expectChangeCipherSpec bool) error {
 		uint64(hdr[5])<<40
 	n := int(hdr[11])<<8 | int(hdr[12])
 
-	if c.haveVers && c.vers != VersionTLS13 && vers != c.vers {
+	if c.haveVers && c.vers != VersionTLS13 && vers != c.vers && !isDTLS(vers) {
 		c.sendAlert(alertProtocolVersion)
 		msg := fmt.Sprintf("received record with version %x when expecting version %x", vers, c.vers)
 		return c.in.setErrorLocked(c.newRecordHeaderError(nil, msg))
@@ -932,6 +946,14 @@ func (c *Conn) writeRecordLocked(typ recordType, data []byte) (int, error) {
 		c.outBuf[11] = byte(m >> 8)
 		c.outBuf[12] = byte(m)
 
+		if len(data) > 6 {
+			// Setting message sequence.
+			data[4] = byte(c.out.dseq >> 8)
+			data[5] = byte(c.out.dseq)
+		}
+
+		c.out.incSeq()
+
 		var err error
 		c.outBuf, err = c.out.encrypt(c.outBuf, data[:m], c.config.rand())
 		if err != nil {
@@ -991,7 +1013,7 @@ func (c *Conn) readHandshake() (interface{}, error) {
 	case typeClientHello:
 		m = &clientHelloMsg{}
 	case typeHelloVerifyRequest:
-		return nil, errors.New("verify request not implemented")
+		m = &helloVerifyRequestMsg{}
 	case typeServerHello:
 		m = new(serverHelloMsg)
 	case typeNewSessionTicket:

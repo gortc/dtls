@@ -29,8 +29,13 @@ const (
 	VersionTLS11  = 0x0302
 	VersionTLS12  = 0x0303
 	VersionTLS13  = 0x0304
+	VersionDTLS10 = 0xfeff
 	VersionDTLS12 = 0xfefd
 )
+
+func isDTLS(v uint16) bool {
+	return v == VersionDTLS10 || v == VersionDTLS12
+}
 
 const (
 	maxPlaintext       = 16384        // maximum plaintext payload length
