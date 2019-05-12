@@ -411,10 +411,19 @@ func (hc *halfConn) decrypt(record []byte) ([]byte, recordType, error) {
 
 		n := len(payload) - macSize - paddingLen
 		n = subtle.ConstantTimeSelect(int(uint32(n)>>31), 0, n) // if n < 0 { n = 0 }
+
+		// TODO: cleanup
+		header := make([]byte, 5)
+		copy(header, record[:3])
+
 		record[11] = byte(n >> 8)
 		record[12] = byte(n)
+
+		header[3] = record[11]
+		header[4] = record[12]
+
 		remoteMAC := payload[n : n+macSize]
-		localMAC := hc.mac.MAC(hc.seq[0:], record[:recordHeaderLen], payload[:n], payload[n+macSize:])
+		localMAC := hc.mac.MAC(hc.seq[:], header, payload[:n], payload[n+macSize:])
 
 		if subtle.ConstantTimeCompare(localMAC, remoteMAC) != 1 || paddingGood != 255 {
 			return nil, 0, alertBadRecordMAC
@@ -423,7 +432,6 @@ func (hc *halfConn) decrypt(record []byte) ([]byte, recordType, error) {
 		plaintext = payload[:n]
 	}
 
-	hc.incSeq()
 	return plaintext, typ, nil
 }
 

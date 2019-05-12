@@ -1603,29 +1603,37 @@ func (m *clientKeyExchangeMsg) marshal() []byte {
 	if m.raw != nil {
 		return m.raw
 	}
-	length := len(m.ciphertext)
-	x := make([]byte, length+4)
-	x[0] = typeClientKeyExchange
-	x[1] = uint8(length >> 16)
-	x[2] = uint8(length >> 8)
-	x[3] = uint8(length)
-	copy(x[4:], m.ciphertext)
 
-	m.raw = x
-	return x
+	var b cryptobyte.Builder
+	b.AddUint8(typeFinished)
+	var tail cryptobyte.Builder
+	tail.AddUint24LengthPrefixed(func(b *cryptobyte.Builder) {
+		b.AddBytes(m.ciphertext)
+	})
+
+	tb := tail.BytesOrPanic()
+	n := uint32(len(tb[3:]))
+	b.AddUint24(n) // length
+	b.AddUint16(0) // mseq
+	b.AddUint24(0) // frag offs
+	b.AddUint24(n) // frag len
+	b.AddBytes(tb[3:])
+
+	m.raw = b.BytesOrPanic()
+
+	return m.raw
 }
 
 func (m *clientKeyExchangeMsg) unmarshal(data []byte) bool {
+	s := cryptobyte.String(data)
 	m.raw = data
-	if len(data) < 4 {
+	if !s.Skip(12 - 3) {
 		return false
 	}
-	l := int(data[1])<<16 | int(data[2])<<8 | int(data[3])
-	if l != len(data)-4 {
+	if !readUint24LengthPrefixed(&s, &m.ciphertext) {
 		return false
 	}
-	m.ciphertext = data[4:]
-	return true
+	return s.Empty()
 }
 
 type finishedMsg struct {
@@ -1640,9 +1648,18 @@ func (m *finishedMsg) marshal() []byte {
 
 	var b cryptobyte.Builder
 	b.AddUint8(typeFinished)
-	b.AddUint24LengthPrefixed(func(b *cryptobyte.Builder) {
+	var tail cryptobyte.Builder
+	tail.AddUint24LengthPrefixed(func(b *cryptobyte.Builder) {
 		b.AddBytes(m.verifyData)
 	})
+
+	tb := tail.BytesOrPanic()
+	n := uint32(len(tb[3:]))
+	b.AddUint24(n) // length
+	b.AddUint16(0) // mseq
+	b.AddUint24(0) // frag offs
+	b.AddUint24(n) // frag len
+	b.AddBytes(tb[3:])
 
 	m.raw = b.BytesOrPanic()
 	return m.raw
@@ -1651,9 +1668,8 @@ func (m *finishedMsg) marshal() []byte {
 func (m *finishedMsg) unmarshal(data []byte) bool {
 	m.raw = data
 	s := cryptobyte.String(data)
-	return s.Skip(1) &&
-		readUint24LengthPrefixed(&s, &m.verifyData) &&
-		s.Empty()
+	return s.Skip(12-3) &&
+		readUint24LengthPrefixed(&s, &m.verifyData) && s.Empty()
 }
 
 type nextProtoMsg struct {
