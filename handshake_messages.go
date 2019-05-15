@@ -620,6 +620,7 @@ func (m *clientHelloMsg) unmarshal(data []byte) bool {
 }
 
 type serverHelloMsg struct {
+	h                            msgHeader
 	raw                          []byte
 	vers                         uint16
 	random                       []byte
@@ -762,10 +763,9 @@ func (m *serverHelloMsg) marshal() []byte {
 
 	tb := tail.BytesOrPanic()
 	n := uint32(len(tb[3:]))
-	b.AddUint24(n) // length
-	b.AddUint16(0) // mseq
-	b.AddUint24(0) // frag offs
-	b.AddUint24(n) // frag len
+	m.h.length = n
+	m.h.fragLength = n
+	m.h.WriteBuilder(&b)
 	b.AddBytes(tb[3:])
 
 	m.raw = b.BytesOrPanic()
@@ -775,8 +775,10 @@ func (m *serverHelloMsg) marshal() []byte {
 func (m *serverHelloMsg) unmarshal(data []byte) bool {
 	*m = serverHelloMsg{raw: data}
 	s := cryptobyte.String(data)
-
-	if !s.Skip(12) {
+	if !s.Skip(1) {
+		return false
+	}
+	if !m.h.ReadBuilder(&s) {
 		return false
 	}
 	if !s.ReadUint16(&m.vers) || !s.ReadBytes(&m.random, 32) {
@@ -1256,6 +1258,7 @@ func (m *certificateRequestMsgTLS13) unmarshal(data []byte) bool {
 }
 
 type certificateMsg struct {
+	h            msgHeader
 	raw          []byte
 	certificates [][]byte
 }
@@ -1279,12 +1282,12 @@ func (m *certificateMsg) marshal() (x []byte) {
 
 	// TODO(ar): set frag and mseq
 	// mseq
-	x[4] = 0
-	x[5] = 0
+	x[4] = uint8(m.h.sequence >> 8)
+	x[5] = uint8(m.h.sequence)
 	// frag offs
-	x[6] = 0
-	x[7] = 0
-	x[8] = 0
+	x[6] = uint8(m.h.fragOffset >> 16)
+	x[7] = uint8(m.h.fragOffset >> 8)
+	x[8] = uint8(m.h.fragOffset)
 	// frag len
 	x[9] = uint8(length >> 16)
 	x[10] = uint8(length >> 8)
@@ -1492,6 +1495,7 @@ func unmarshalCertificate(s *cryptobyte.String, certificate *Certificate) bool {
 }
 
 type serverKeyExchangeMsg struct {
+	h   msgHeader
 	raw []byte
 	key []byte
 }
@@ -1536,6 +1540,7 @@ func (m *serverKeyExchangeMsg) unmarshal(data []byte) bool {
 }
 
 type certificateStatusMsg struct {
+	h        msgHeader
 	raw      []byte
 	response []byte
 }
@@ -1582,7 +1587,9 @@ func (m *certificateStatusMsg) unmarshal(data []byte) bool {
 	return true
 }
 
-type serverHelloDoneMsg struct{}
+type serverHelloDoneMsg struct {
+	h msgHeader
+}
 
 func (m *serverHelloDoneMsg) marshal() []byte {
 	x := make([]byte, 4+8)
@@ -1595,6 +1602,7 @@ func (m *serverHelloDoneMsg) unmarshal(data []byte) bool {
 }
 
 type clientKeyExchangeMsg struct {
+	h          msgHeader
 	raw        []byte
 	ciphertext []byte
 }
@@ -1637,8 +1645,55 @@ func (m *clientKeyExchangeMsg) unmarshal(data []byte) bool {
 }
 
 type finishedMsg struct {
+	h          msgHeader
 	raw        []byte
 	verifyData []byte
+}
+
+// msgHeader is common header for DTLS messages.
+// TODO: Add type?
+type msgHeader struct {
+	length     uint32
+	sequence   uint16
+	fragOffset uint32
+	fragLength uint32
+}
+
+func (h *msgHeader) ReadRaw(x []byte) {
+	_ = x[10] // ensuring reads below
+	h.length = uint32(x[0])<<16 | uint32(x[1])<<8 | uint32(x[2])
+	h.sequence = uint16(x[3])<<8 | uint16(x[4])
+	h.fragOffset = uint32(x[5])<<16 | uint32(x[6])<<8 | uint32(x[7])
+	h.fragLength = uint32(x[8])<<16 | uint32(x[9])<<8 | uint32(x[10])
+}
+
+func (h msgHeader) WriteRaw(x []byte) {
+	_ = x[10] // ensuring writes below
+	x[0] = uint8(h.length >> 16)
+	x[1] = uint8(h.length >> 8)
+	x[2] = uint8(h.length)
+	x[3] = uint8(h.sequence >> 16)
+	x[4] = uint8(h.sequence >> 8)
+	x[5] = uint8(h.fragOffset >> 16)
+	x[6] = uint8(h.fragOffset >> 8)
+	x[7] = uint8(h.fragOffset)
+	x[8] = uint8(h.fragLength >> 16)
+	x[9] = uint8(h.fragLength >> 8)
+	x[10] = uint8(h.fragLength)
+}
+
+func (h msgHeader) WriteBuilder(b *cryptobyte.Builder) {
+	b.AddUint24(h.length)     // length
+	b.AddUint16(h.sequence)   // mseq
+	b.AddUint24(h.fragOffset) // frag offs
+	b.AddUint24(h.fragLength) // frag len
+}
+
+func (h *msgHeader) ReadBuilder(s *cryptobyte.String) bool {
+	return s.ReadUint24(&h.length) &&
+		s.ReadUint16(&h.sequence) &&
+		s.ReadUint24(&h.fragOffset) &&
+		s.ReadUint24(&h.fragLength)
 }
 
 func (m *finishedMsg) marshal() []byte {
@@ -1655,10 +1710,9 @@ func (m *finishedMsg) marshal() []byte {
 
 	tb := tail.BytesOrPanic()
 	n := uint32(len(tb[3:]))
-	b.AddUint24(n) // length
-	b.AddUint16(0) // mseq
-	b.AddUint24(0) // frag offs
-	b.AddUint24(n) // frag len
+	m.h.length = n
+	m.h.fragLength = n
+	m.h.WriteBuilder(&b)
 	b.AddBytes(tb[3:])
 
 	m.raw = b.BytesOrPanic()
@@ -1668,8 +1722,13 @@ func (m *finishedMsg) marshal() []byte {
 func (m *finishedMsg) unmarshal(data []byte) bool {
 	m.raw = data
 	s := cryptobyte.String(data)
-	return s.Skip(12-3) &&
-		readUint24LengthPrefixed(&s, &m.verifyData) && s.Empty()
+	if !s.Skip(1) {
+		return false
+	}
+	if !m.h.ReadBuilder(&s) {
+		return false
+	}
+	return s.ReadBytes(&m.verifyData, int(m.h.length)) && s.Empty()
 }
 
 type nextProtoMsg struct {
@@ -1733,6 +1792,7 @@ func (m *nextProtoMsg) unmarshal(data []byte) bool {
 }
 
 type certificateRequestMsg struct {
+	h   msgHeader
 	raw []byte
 	// hasSignatureAlgorithm indicates whether this message includes a list of
 	// supported signature algorithms. This change was introduced with TLS 1.2.
@@ -1762,22 +1822,10 @@ func (m *certificateRequestMsg) marshal() (x []byte) {
 
 	x = make([]byte, 4+8+length)
 	x[0] = typeCertificateRequest
-	x[1] = uint8(length >> 16)
-	x[2] = uint8(length >> 8)
-	x[3] = uint8(length)
 
-	// TODO(ar): set frag and mseq
-	// mseq
-	x[4] = 0
-	x[5] = 0
-	// frag offs
-	x[6] = 0
-	x[7] = 0
-	x[8] = 0
-	// frag len
-	x[9] = uint8(length >> 16)
-	x[10] = uint8(length >> 8)
-	x[11] = uint8(length)
+	m.h.length = uint32(length)
+	m.h.fragLength = uint32(length)
+	m.h.WriteRaw(x[1:12])
 
 	x[12] = uint8(len(m.certificateTypes))
 
@@ -1818,8 +1866,9 @@ func (m *certificateRequestMsg) unmarshal(data []byte) bool {
 		return false
 	}
 
-	length := uint32(data[1])<<16 | uint32(data[2])<<8 | uint32(data[3])
-	if uint32(len(data))-12 != length {
+	m.h.ReadRaw(data[1:12])
+
+	if uint32(len(data))-12 != m.h.length {
 		return false
 	}
 
@@ -1991,19 +2040,10 @@ func (*helloRequestMsg) unmarshal(data []byte) bool {
 
 // RFC 6347 Section 4.2.2
 type helloVerifyRequestMsg struct {
+	h      msgHeader
 	vers   uint16
 	raw    []byte
 	cookie []byte
-}
-
-func writeFrag(b, tail *cryptobyte.Builder) {
-	tb := tail.BytesOrPanic()
-	n := uint32(len(tb[3:]))
-	b.AddUint24(n) // length
-	b.AddUint16(0) // mseq
-	b.AddUint24(0) // frag offs
-	b.AddUint24(n) // frag len
-	b.AddBytes(tb[3:])
 }
 
 func (m *helloVerifyRequestMsg) marshal() []byte {
@@ -2021,7 +2061,12 @@ func (m *helloVerifyRequestMsg) marshal() []byte {
 		})
 	})
 
-	writeFrag(&b, &tail)
+	tb := tail.BytesOrPanic()
+	n := uint32(len(tb[3:]))
+	m.h.length = n
+	m.h.fragLength = n
+	m.h.WriteBuilder(&b)
+	b.AddBytes(tb[3:])
 
 	m.raw = b.BytesOrPanic()
 	return m.raw
@@ -2030,8 +2075,8 @@ func (m *helloVerifyRequestMsg) marshal() []byte {
 func (m *helloVerifyRequestMsg) unmarshal(data []byte) bool {
 	*m = helloVerifyRequestMsg{raw: data}
 	s := cryptobyte.String(data)
-	// Skip message type, length, sequence, frag. offset, frag. length.
-	if !s.Skip(12) {
+	s.Skip(1)
+	if !m.h.ReadBuilder(&s) {
 		return false
 	}
 	if !s.ReadUint16(&m.vers) {
