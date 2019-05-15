@@ -1871,7 +1871,7 @@ func (m *certificateRequestMsg) unmarshal(data []byte) bool {
 		return false
 	}
 
-	m.h.ReadRaw(data[1:12])
+	m.h.ReadRaw(data[1:11])
 
 	if uint32(len(data))-12 != m.h.length {
 		return false
