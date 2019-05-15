@@ -390,6 +390,7 @@ func (hs *serverHandshakeState) doResumeHandshake() error {
 	hs.finishedHash = newFinishedHash(c.vers, hs.suite)
 	hs.finishedHash.discardHandshakeBuffer()
 	hs.finishedHash.Write(hs.clientHello.marshal())
+	hs.hello.h.sequence = uint16(hs.c.out.dseq)
 	hs.finishedHash.Write(hs.hello.marshal())
 	if _, err := c.writeRecord(recordTypeHandshake, hs.hello.marshal()); err != nil {
 		return err
@@ -423,6 +424,7 @@ func (hs *serverHandshakeState) doFullHandshake() error {
 		hs.finishedHash.discardHandshakeBuffer()
 	}
 	hs.finishedHash.Write(hs.clientHello.marshal())
+	hs.hello.h.sequence = uint16(hs.c.out.dseq)
 	hs.finishedHash.Write(hs.hello.marshal())
 	if _, err := c.writeRecord(recordTypeHandshake, hs.hello.marshal()); err != nil {
 		return err
@@ -430,6 +432,7 @@ func (hs *serverHandshakeState) doFullHandshake() error {
 
 	certMsg := new(certificateMsg)
 	certMsg.certificates = hs.cert.Certificate
+	certMsg.h.sequence = uint16(hs.c.out.dseq)
 	hs.finishedHash.Write(certMsg.marshal())
 	if _, err := c.writeRecord(recordTypeHandshake, certMsg.marshal()); err != nil {
 		return err
@@ -438,6 +441,7 @@ func (hs *serverHandshakeState) doFullHandshake() error {
 	if hs.hello.ocspStapling {
 		certStatus := new(certificateStatusMsg)
 		certStatus.response = hs.cert.OCSPStaple
+		certStatus.h.sequence = uint16(hs.c.out.dseq)
 		hs.finishedHash.Write(certStatus.marshal())
 		if _, err := c.writeRecord(recordTypeHandshake, certStatus.marshal()); err != nil {
 			return err
@@ -451,6 +455,7 @@ func (hs *serverHandshakeState) doFullHandshake() error {
 		return err
 	}
 	if skx != nil {
+		skx.h.sequence = uint16(hs.c.out.dseq)
 		hs.finishedHash.Write(skx.marshal())
 		if _, err := c.writeRecord(recordTypeHandshake, skx.marshal()); err != nil {
 			return err
@@ -460,6 +465,7 @@ func (hs *serverHandshakeState) doFullHandshake() error {
 	if c.config.ClientAuth >= RequestClientCert {
 		// Request a client certificate
 		certReq := new(certificateRequestMsg)
+		certReq.h.sequence = uint16(hs.c.out.dseq)
 		certReq.certificateTypes = []byte{
 			byte(certTypeRSASign),
 			byte(certTypeECDSASign),
@@ -484,6 +490,7 @@ func (hs *serverHandshakeState) doFullHandshake() error {
 	}
 
 	helloDone := new(serverHelloDoneMsg)
+	helloDone.h.sequence = uint16(hs.c.out.dseq)
 	hs.finishedHash.Write(helloDone.marshal())
 	if _, err := c.writeRecord(recordTypeHandshake, helloDone.marshal()); err != nil {
 		return err
@@ -709,6 +716,7 @@ func (hs *serverHandshakeState) sendFinished(out []byte) error {
 
 	finished := new(finishedMsg)
 	finished.verifyData = hs.finishedHash.serverSum(hs.masterSecret)
+	finished.h.sequence = uint16(hs.c.out.dseq)
 	hs.finishedHash.Write(finished.marshal())
 	if _, err := c.writeRecord(recordTypeHandshake, finished.marshal()); err != nil {
 		return err

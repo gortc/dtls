@@ -954,12 +954,6 @@ func (c *Conn) writeRecordLocked(typ recordType, data []byte) (int, error) {
 		c.outBuf[11] = byte(m >> 8)
 		c.outBuf[12] = byte(m)
 
-		if len(data) > 6 {
-			// Setting message sequence.
-			data[4] = byte(c.out.dseq >> 8)
-			data[5] = byte(c.out.dseq)
-		}
-
 		c.out.incSeq()
 
 		var err error

@@ -1594,11 +1594,16 @@ type serverHelloDoneMsg struct {
 func (m *serverHelloDoneMsg) marshal() []byte {
 	x := make([]byte, 4+8)
 	x[0] = typeServerHelloDone
+	m.h.WriteRaw(x[1:])
 	return x
 }
 
 func (m *serverHelloDoneMsg) unmarshal(data []byte) bool {
-	return len(data) == 4+8
+	if len(data) != 4+8 {
+		return false
+	}
+	m.h.ReadRaw(data[1:])
+	return true
 }
 
 type clientKeyExchangeMsg struct {
@@ -1672,8 +1677,8 @@ func (h msgHeader) WriteRaw(x []byte) {
 	x[0] = uint8(h.length >> 16)
 	x[1] = uint8(h.length >> 8)
 	x[2] = uint8(h.length)
-	x[3] = uint8(h.sequence >> 16)
-	x[4] = uint8(h.sequence >> 8)
+	x[3] = uint8(h.sequence >> 8)
+	x[4] = uint8(h.sequence)
 	x[5] = uint8(h.fragOffset >> 16)
 	x[6] = uint8(h.fragOffset >> 8)
 	x[7] = uint8(h.fragOffset)
