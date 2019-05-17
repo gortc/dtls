@@ -1617,36 +1617,29 @@ func (m *clientKeyExchangeMsg) marshal() []byte {
 		return m.raw
 	}
 
-	var b cryptobyte.Builder
-	b.AddUint8(typeFinished)
-	var tail cryptobyte.Builder
-	tail.AddUint24LengthPrefixed(func(b *cryptobyte.Builder) {
-		b.AddBytes(m.ciphertext)
-	})
+	length := len(m.ciphertext)
+	x := make([]byte, length+12)
+	x[0] = typeClientKeyExchange
+	m.h.length = uint32(length)
+	m.h.fragLength = uint32(length)
+	m.h.WriteRaw(x[1:12])
+	copy(x[12:], m.ciphertext)
 
-	tb := tail.BytesOrPanic()
-	n := uint32(len(tb[3:]))
-	b.AddUint24(n) // length
-	b.AddUint16(0) // mseq
-	b.AddUint24(0) // frag offs
-	b.AddUint24(n) // frag len
-	b.AddBytes(tb[3:])
-
-	m.raw = b.BytesOrPanic()
-
-	return m.raw
+	m.raw = x
+	return x
 }
 
 func (m *clientKeyExchangeMsg) unmarshal(data []byte) bool {
-	s := cryptobyte.String(data)
 	m.raw = data
-	if !s.Skip(12 - 3) {
+	if len(data) < 13 {
 		return false
 	}
-	if !readUint24LengthPrefixed(&s, &m.ciphertext) {
+	m.h.ReadRaw(data[1:12])
+	if len(data)-12 != int(m.h.length) {
 		return false
 	}
-	return s.Empty()
+	m.ciphertext = data[12:]
+	return true
 }
 
 type finishedMsg struct {
@@ -1867,11 +1860,11 @@ func (m *certificateRequestMsg) marshal() (x []byte) {
 func (m *certificateRequestMsg) unmarshal(data []byte) bool {
 	m.raw = data
 
-	if len(data) < 5 {
+	if len(data) < 13 {
 		return false
 	}
 
-	m.h.ReadRaw(data[1:11])
+	m.h.ReadRaw(data[1:12])
 
 	if uint32(len(data))-12 != m.h.length {
 		return false
