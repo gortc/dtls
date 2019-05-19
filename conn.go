@@ -481,7 +481,12 @@ func (hc *halfConn) encrypt(record, payload []byte, rand io.Reader) ([]byte, err
 
 	var mac []byte
 	if hc.mac != nil {
-		mac = hc.mac.MAC(hc.seq[:], record[:recordHeaderLen], payload, nil)
+		header := make([]byte, 5)
+		copy(header, record[:3])
+		header[3] = record[11]
+		header[4] = record[12]
+
+		mac = hc.mac.MAC(hc.seq[:], header, payload, nil)
 	}
 
 	var dst []byte
